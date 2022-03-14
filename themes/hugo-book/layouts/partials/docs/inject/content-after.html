@@ -1,0 +1,8 @@
+{{ if ne .RelPermalink "/"}} {{ $edit_url := print "/admin/#/edit" .RelPermalink
+}}
+
+<p>
+  <a href="{{$edit_url}}" class="book-btn">Edit this page</a>&nbsp;&nbsp;
+  <a href="/admin/#/collections/docs/new" class="book-btn">Add a New Page</a>
+</p>
+{{ end }}
