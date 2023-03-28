@@ -1,8 +1,8 @@
-baseURL = 'http://example.org/'
+baseURL = 'https://post.zexinfu.com/'
 languageCode = 'en-us'
-title = 'Hugo Books Site'
+title = 'Fu's Tech Blog'
 theme = 'hugo-book'
 [params]
   # (Optional, default light) Sets color theme: light, dark or auto.
   # Theme 'auto' switches between dark and light modes based on browser/os preferences
-  BookTheme = 'dark'
+  BookTheme = 'auto'
