@@ -1,39 +1,70 @@
 ---
-title: Sample Document One
-weight: 4
+title: 用python实现神经网络定点化
+weight: 1
 ---
 
-# Sample Doc
+### 背景
 
-{{< columns >}} <!-- begin columns block -->
+由于FPGA一般只支持定点运算，要在FPGA上实现神经网络加速器，就需要先将PC上的神经网络算法做定点化处理，并选定最佳的定点位宽从而使定点化后的精度损失尽可能小。
 
-# Left Content
+### 定点化简述
 
-Lorem markdownum insigne. Olympo signis Delphis! Retexi Nereius nova develat stringit, frustra Saturnius uteroque inter! Oculis non ritibus Telethusa protulit, sed sed aere valvis inhaesuro Pallas animam: qui quid, ignes. Miseratus fonte Ditis conubia.
-<---> <!-- magic separator, between columns -->
+定点数和浮点数的区别这里我就不写了，网上都有的。
 
-# Mid Content
+定点化运算相比浮点数带来的精度损失主要在于两方面：一是最大表示范围相比浮点数更小带来的损失，二是小数位有限带来的精度损失（即最小分辨率）
 
-Lorem markdownum insigne. Olympo signis Delphis! Retexi Nereius nova develat stringit, frustra Saturnius uteroque inter!
+因此，实际上精度损失不是运算过程中产生的，而是数的表示所带来的。定点数和浮点数都能表示的同样的数进行乘或加运算，运算本身没有误差。误差来自于将浮点数转换为定点数所带来的损失，和每次运算过后由于位宽限制需要截断带来的损失。
 
-<---> <!-- magic separator, between columns -->
+因此，在硬件实现前，我们需要在PC上模拟FPGA计算中的截断对最终结果带来的影响。以4位小数位的16位带符号定点数为例，我们首先要将神经网络的输入特征和参数都转换为Q11.4的定点数，再转换回浮点数做乘加运算，并在每次乘法或加法过后都将结果转换为Q11.4的定点数，如此循环以得到最终结果。
 
-# Right Content
+### 纯python实现卷积和全连接运算
 
-Lorem markdownum insigne. Olympo signis Delphis! Retexi Nereius nova develat stringit, frustra Saturnius uteroque inter! Oculis non ritibus Telethusa protulit, sed sed aere valvis inhaesuro Pallas animam: qui quid, ignes. Miseratus fonte Ditis conubia.
+由于我们需要在每次乘加运算后做处理，我们便不能用pytorch框架直接做推理，而需要自己实现卷积和全连接的python算法。numpy的矩阵乘函数也是不能用的。
 
-{{< /columns >}}
+注：pytorch似乎有自己的量化工具，不过它的量化方法似乎更高端复杂一点，所以我就自己实现了。
 
-## Mentem genus facietque salire tempus bracchia
+我们采用im2col+matrix multiplication的方法来实现卷积算法。
 
-Lorem markdownum partu paterno Achillem. Habent amne generosi aderant ad pellem nec erat sustinet merces columque haec et, dixit minus nutrit accipiam subibis subdidit. Temeraria servatum agros qui sed fulva facta. Primum ultima, dedit, suo quisque linguae medentes fixo: tum petis.
+im2col的代码如下，将卷积的输入特征转成矩阵乘的向量：
 
-## Rapit vocant si hunc siste adspice
+![image-20220530141434415](https://tuchuang-1254351169.cos.ap-guangzhou.myqcloud.com/image-20220530141434415.png)
 
-Ora precari Patraeque Neptunia, dixit Danae Cithaeron armaque maxima in nati Coniugis templis fluidove. Effugit usus nec ingreditur agmen ac manus conlato. Nullis vagis nequiquam vultibus aliquos altera suum venis teneas fretum. Armos remotis hoc sine ferrea iuncta quam!
+再实现矩阵乘法：
 
-## Caesorum illa tu sentit micat vestes papyriferi
+![image-20220530141548424](https://tuchuang-1254351169.cos.ap-guangzhou.myqcloud.com/image-20220530141548424.png)
 
-Inde aderam facti; Theseus vis de tauri illa peream. Oculos uberaque non regisque vobis cursuque, opus venit quam vulnera. Et maiora necemque, lege modo; gestanda nitidi, vero? Dum ne pectoraque testantur.
+便能得到卷积算法：
 
-Venasque repulsa Samos qui, exspectatum eram animosque hinc, aut manes, Assyrii. Cupiens auctoribus pariter rubet, profana magni super nocens. Vos ius sibilat inpar turba visae iusto! Sedes ante dum superest extrema.
+![image-20220530141705551](https://tuchuang-1254351169.cos.ap-guangzhou.myqcloud.com/image-20220530141705551.png)
+
+全连接可以直接映射成矩阵乘，这里就不再说明了。
+
+### 定点化函数
+
+导入pytorch训练后的参数和输入特征后，先做一次定点化转换。
+
+定点化的函数如下。还在赶报告的ddl，就先不详细讲解了（doge）
+
+![image-20220530142252092](https://tuchuang-1254351169.cos.ap-guangzhou.myqcloud.com/image-20220530142252092.png)
+
+这里说明一下showbin函数，python自带的bin函数比较特别，不能显示补码（负数会直接显示成带负号的二进制原码形式），所以先把n和0xffff与一下就能得到补码表示了。这个函数用于debug很方便。
+
+对于定点数和浮点数的互转，推荐一下豪猪的《DSP芯片的定点运算》，我还花了十多块下载下来，不过讲得很清晰，还算值得。
+
+由于quan函数只能针对单个数值进行定点化，而不能直接对torch和numpy数组进行运算。所以我很笨地把输入特征和权值都按它的维度打开然后挨个数定点化，但似乎好像也没有更好的方法了？
+
+有了quan函数，我们便能得到一个定点化版的矩阵乘函数
+
+![image-20220530142931553](https://tuchuang-1254351169.cos.ap-guangzhou.myqcloud.com/image-20220530142931553.png)
+
+以及定点化版的卷积函数：
+
+![image-20220530142957634](https://tuchuang-1254351169.cos.ap-guangzhou.myqcloud.com/image-20220530142957634.png)
+
+### 补充
+
+再补充一点我自己一开始遇到的误区。实际上在软件上测试定点化，不需要自己实现定点数的加减乘除。这也是为什么我的定点化函数里依然是用浮点数做运算。一开始我以为需要用定点数实现乘法和加法，困扰了好久。所以就像我在开头说的，定点化带来的误差在于定点数和浮点数的表示误差，而不是定点数和浮点的运算误差。所以运算直接用浮点数的乘法加法来实现就可以了，只需要在运算后转回定点数，就可以模拟定点的误差。
+
+### 定点位宽搜索
+
+基于上面的内容，我们就可以对比测试出定点数和浮点数的最终结果差异。所以以16位定点数为例，有15种定点方案。分别测试十五种的情况，从中选出误差最小的，就可以得到FPGA上部署的最佳定点位宽了。
