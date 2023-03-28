@@ -1,5 +1,5 @@
 ---
-title: 用python实现神经网络定点化
+title: 用Python实现神经网络定点化
 weight: 1
 ---
 
