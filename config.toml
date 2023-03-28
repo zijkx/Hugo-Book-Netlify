@@ -1,6 +1,6 @@
 baseURL = 'https://post.zexinfu.com/'
 languageCode = 'en-us'
-title = 'Fu\'s Tech Blog'
+title = 'Tech Blog'
 theme = 'hugo-book'
 [params]
   # (Optional, default light) Sets color theme: light, dark or auto.
